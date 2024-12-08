@@ -1,6 +1,7 @@
 const ledWidth = 40;
 const ledHeight = 40;
 
+// Shorter way of querying
 const $ = document.querySelector.bind(document);
 const $$ = document.querySelectorAll.bind(document);
 
@@ -8,13 +9,14 @@ let canvas, canvasWidth, canvasHeight, ctx;
 
 /**
  * @description Array of led objects
+ * @typedef leds
  * @type {Array.<{x: number,y: number,ledIndex: number, ledName: string}>}
  */
 let leds = [];
 
-let ledIndex = 0;
-let smallesUnusedLedIndex = 0;
-
+/**
+ * Function that sets Canvas, add Eventlistener and draws the Grid for the first time
+ */
 function init() {
   setCanvas();
 
@@ -25,6 +27,9 @@ function init() {
   drawGrid();
 }
 
+/**
+ * Function that set the Canvas size and gets the context
+ */
 function setCanvas() {
   let width = $("#idWidth").value;
   let height = $("#idHeight").value;
@@ -37,6 +42,9 @@ function setCanvas() {
   ctx = canvas.getContext("2d");
 }
 
+/**
+ * Function that adds change listener to the width and height input and calls the setCanvas and redraw functions
+ */
 function addEventListeners() {
   canvas.addEventListener("click", onCanvasClick, false);
   $("#idWidth").addEventListener("change", (event) => {
@@ -53,6 +61,9 @@ function addEventListeners() {
   });
 }
 
+/**
+ * Function that draws the Grid
+ */
 function drawGrid() {
   ctx.strokeStyle = "grey";
   for (let x = 0; x < canvasWidth; x += ledWidth) {
@@ -74,6 +85,10 @@ function drawGrid() {
   ctx.stroke();
 }
 
+/**
+ * Function that registers a click on the canvas and call the updateLedArray und redraw function
+ * @param {PointerEvent} event 
+ */
 function onCanvasClick(event) {
   let x = Math.floor(event.offsetX / ledWidth);
   let y = Math.floor(event.offsetY / ledHeight);
@@ -82,6 +97,11 @@ function onCanvasClick(event) {
   redraw();
 }
 
+/**
+ * Function that either adds or removes a LED
+ * @param {Number} x 
+ * @param {Number} y 
+ */
 function updateLedArray(x, y) {
   let ledIndex = leds.findIndex((led) => led.x === x && led.y === y);
 
@@ -92,12 +112,18 @@ function updateLedArray(x, y) {
   }
 }
 
+/**
+ * Function that redraws the Canvas by clearing it and calling hte drawGrid and drawLeds functions
+ */
 function redraw() {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
   drawGrid();
   drawLeds();
 }
 
+/**
+ * Function that draws the rect and text on the Canvas by iterating the leds Array
+ */
 function drawLeds() {
   for (let led of leds) {
     ctx.fillStyle = "green";
@@ -114,42 +140,61 @@ function drawLeds() {
   }
 }
 
+/**
+ * Function that calls the createFileAsJson function, opens a SaveFilePicker dialog and writes the file to the fileSystem
+ * @param {SubmitEvent} e 
+ * @async
+ * @returns {void}
+ */
 async function save(e) {
   e.preventDefault();
 
   let jsonData = await createFileAsJson();
   let fileHandle = await window.showSaveFilePicker({
-    suggestedName: `${$("#idProductName").value} - ${leds.length} LED.json`,
+    suggestedName: `${$("#idProductName").value} - ${jsonData.LedCount} LED.json`,
     types: [
       { description: "JSON File", accept: { "application/json": ".json" } },
     ],
   });
   let stream = await fileHandle.createWritable();
-  await stream.write(jsonData);
+  await stream.write(await JSON.stringify(jsonData, null, "\t"));
   await stream.close();
 }
 
+/**
+ * Function that generates the JSON file
+ * @async
+ * @returns {<{ProductName: String, DisplayName: String, Brand: String, Type: String, LedCount: Number, Width: Number, Height: Number, LedMapping: Number[], LedCoordinates: {x: Number,y: Number}[], LedNames: String[], Image: Base64}>}
+ */
 async function createFileAsJson() {
+
+  // Get Base64 Image
   let base64Image = await loadImage();
+
+  let width = $("#idWidth").value;
+  let height = $("#idHeight").value;
+
+  // Filter out every led not in the x and y boundaries, and sort the result by the ledIndex
+  let leds_copy = leds.filter(led=>led.x <= width-1 && led.y <= height-1).sort((a,b)=>a.ledIndex-b.ledIndex);
 
   let outputFile = {
     ProductName: $("#idProductName").value,
-    DisplayName: `${$("#idProductName").value} - ${leds.length} LED`,
+    DisplayName: `${$("#idProductName").value} - ${leds_copy.length} LED`,
     Brand: $("#idBrand").value,
     Type: "custom",
-    LedCount: leds.length,
+    LedCount: leds_copy.length,
     Width: +$("#idWidth").value,
     Height: +$("#idHeight").value,
-    LedMapping: leds.map((led) => led.ledIndex),
-    LedCoordinates: leds.map((led) => [led.x, led.y]),
-    LedNames: leds.map((led) => led.ledName),
+    LedMapping: leds_copy.map((led) => led.ledIndex),
+    LedCoordinates: leds_copy.map((led) => [led.x, led.y]),
+    LedNames: leds_copy.map((led) => led.ledName),
     Image: base64Image,
   };
-  return await JSON.stringify(outputFile, null, "\t");
+  return outputFile;
 }
 /**
- * @description Function that either returns the default Base64 image or if a local file is provided opens it and converts it to Base64
- * @returns string
+ * Function that either returns the default Base64 image or if a local file is provided opens it and converts it to Base64
+ * @returns {Base64}
  */
 async function loadImage() {
   let base64Image =
@@ -168,6 +213,10 @@ async function loadImage() {
   return base64Image;
 }
 
+/**
+ * Function that return the smallest unused led index
+ * @returns {number}
+ */
 function findSmalledUnusedLedIndex() {
   const set = new Set(leds.map((led) => led.ledIndex));
   let i = 0;
