@@ -23,6 +23,7 @@ function init() {
   addEventListeners();
 
   $("#idForm").onsubmit = save;
+  $("#idLoad").onclick = load;
 
   drawGrid();
 }
@@ -87,7 +88,7 @@ function drawGrid() {
 
 /**
  * Function that registers a click on the canvas and call the updateLedArray und redraw function
- * @param {PointerEvent} event 
+ * @param {PointerEvent} event
  */
 function onCanvasClick(event) {
   let x = Math.floor(event.offsetX / ledWidth);
@@ -99,8 +100,8 @@ function onCanvasClick(event) {
 
 /**
  * Function that either adds or removes a LED
- * @param {Number} x 
- * @param {Number} y 
+ * @param {Number} x
+ * @param {Number} y
  */
 function updateLedArray(x, y) {
   let ledIndex = leds.findIndex((led) => led.x === x && led.y === y);
@@ -142,7 +143,7 @@ function drawLeds() {
 
 /**
  * Function that calls the createFileAsJson function, opens a SaveFilePicker dialog and writes the file to the fileSystem
- * @param {SubmitEvent} e 
+ * @param {SubmitEvent} e
  * @async
  * @returns {void}
  */
@@ -151,7 +152,9 @@ async function save(e) {
 
   let jsonData = await createFileAsJson();
   let fileHandle = await window.showSaveFilePicker({
-    suggestedName: `${$("#idProductName").value} - ${jsonData.LedCount} LED.json`,
+    suggestedName: `${$("#idProductName").value} - ${
+      jsonData.LedCount
+    } LED.json`,
     types: [
       { description: "JSON File", accept: { "application/json": ".json" } },
     ],
@@ -162,12 +165,58 @@ async function save(e) {
 }
 
 /**
+ * Function that
+ * @async
+ */
+async function load() {
+  // Open File Open Dialog
+  const pickerOpts = {
+    types: [
+      {
+        description: "Json",
+        accept: { "application/json": ".json" },
+      },
+    ],
+    multiple: false,
+  };
+  let [fileHandle] = await window.showOpenFilePicker(pickerOpts);
+
+  // Load File
+  let file = await fileHandle.getFile();
+  let text = await file.text();
+  /**
+   * @type {<{ProductName: String, DisplayName: String, Brand: String, Type: String, LedCount: Number, Width: Number, Height: Number, LedMapping: Number[], LedCoordinates: {x: Number,y: Number}[], LedNames: String[], Image: Base64}>}
+   */
+  let object = await JSON.parse(text);
+
+  // Set inputfileds
+  $("#idProductName").value = object.ProductName;
+  $("#idBrand").value = object.Brand;
+  $("#idWidth").value = object.Width;
+  $("#idHeight").value = object.Height;
+
+  // Reset led Array
+  /**
+   * @type {{Array.<{x: number,y: number,ledIndex: number, ledName: string}>}} leds
+   */
+  leds = [];
+
+  for (let id in object.LedMapping) {
+    let ledIndex = object.LedMapping[id];
+    let [x, y] = object.LedCoordinates[id];
+    let ledName = object.LedNames[id];
+    leds.push({ x, y, ledIndex, ledName });
+  }
+  setCanvas();
+  redraw();
+}
+
+/**
  * Function that generates the JSON file
  * @async
  * @returns {<{ProductName: String, DisplayName: String, Brand: String, Type: String, LedCount: Number, Width: Number, Height: Number, LedMapping: Number[], LedCoordinates: {x: Number,y: Number}[], LedNames: String[], Image: Base64}>}
  */
 async function createFileAsJson() {
-
   // Get Base64 Image
   let base64Image = await loadImage();
 
@@ -175,7 +224,9 @@ async function createFileAsJson() {
   let height = $("#idHeight").value;
 
   // Filter out every led not in the x and y boundaries, and sort the result by the ledIndex
-  let leds_copy = leds.filter(led=>led.x <= width-1 && led.y <= height-1).sort((a,b)=>a.ledIndex-b.ledIndex);
+  let leds_copy = leds
+    .filter((led) => led.x <= width - 1 && led.y <= height - 1)
+    .sort((a, b) => a.ledIndex - b.ledIndex);
 
   let outputFile = {
     ProductName: $("#idProductName").value,
